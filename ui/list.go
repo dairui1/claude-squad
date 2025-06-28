@@ -53,11 +53,12 @@ var autoYesStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#1a1a1a"))
 
 type List struct {
-	items         []*session.Instance
-	selectedIdx   int
-	height, width int
-	renderer      *InstanceRenderer
-	autoyes       bool
+	items          []*session.Instance
+	selectedIdx    int
+	height, width  int
+	renderer       *InstanceRenderer
+	autoyes        bool
+	verticalLayout bool
 
 	// map of repo name to number of instances using it. Used to display the repo name only if there are
 	// multiple repos in play.
@@ -66,10 +67,11 @@ type List struct {
 
 func NewList(spinner *spinner.Model, autoYes bool) *List {
 	return &List{
-		items:    []*session.Instance{},
-		renderer: &InstanceRenderer{spinner: spinner},
-		repos:    make(map[string]int),
-		autoyes:  autoYes,
+		items:          []*session.Instance{},
+		renderer:       &InstanceRenderer{spinner: spinner},
+		repos:          make(map[string]int),
+		autoyes:        autoYes,
+		verticalLayout: false,
 	}
 }
 
@@ -77,7 +79,14 @@ func NewList(spinner *spinner.Model, autoYes bool) *List {
 func (l *List) SetSize(width, height int) {
 	l.width = width
 	l.height = height
-	l.renderer.setWidth(width)
+	l.renderer.setWidth(width, l.verticalLayout)
+}
+
+// SetVerticalLayout enables or disables vertical layout mode
+func (l *List) SetVerticalLayout(vertical bool) {
+	l.verticalLayout = vertical
+	// Update renderer width when layout changes
+	l.renderer.setWidth(l.width, l.verticalLayout)
 }
 
 // SetSessionPreviewSize sets the height and width for the tmux sessions. This makes the stdout line have the correct
@@ -106,8 +115,12 @@ type InstanceRenderer struct {
 	width   int
 }
 
-func (r *InstanceRenderer) setWidth(width int) {
-	r.width = AdjustPreviewWidth(width)
+func (r *InstanceRenderer) setWidth(width int, verticalLayout bool) {
+	if verticalLayout {
+		r.width = width
+	} else {
+		r.width = AdjustPreviewWidth(width)
+	}
 }
 
 // ɹ and ɻ are other options.
@@ -233,7 +246,13 @@ func (l *List) String() string {
 
 	// Write title line
 	// add padding of 2 because the border on list items adds some extra characters
-	titleWidth := AdjustPreviewWidth(l.width) + 2
+	var titleWidth int
+	if l.verticalLayout {
+		titleWidth = l.width + 2
+	} else {
+		titleWidth = AdjustPreviewWidth(l.width) + 2
+	}
+
 	if !l.autoyes {
 		b.WriteString(lipgloss.Place(
 			titleWidth, 1, lipgloss.Left, lipgloss.Bottom, mainTitle.Render(titleText)))

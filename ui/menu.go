@@ -48,12 +48,13 @@ type Menu struct {
 	state         MenuState
 	instance      *session.Instance
 	isInDiffTab   bool
+	compactMode   bool
 
 	// keyDown is the key which is pressed. The default is -1.
 	keyDown keys.KeyName
 }
 
-var defaultMenuOptions = []keys.KeyName{keys.KeyNew, keys.KeyPrompt, keys.KeyHelp, keys.KeyQuit}
+var defaultMenuOptions = []keys.KeyName{keys.KeyNew, keys.KeyPrompt, keys.KeyToggleMobile, keys.KeyHelp, keys.KeyQuit}
 var newInstanceMenuOptions = []keys.KeyName{keys.KeySubmitName}
 var promptMenuOptions = []keys.KeyName{keys.KeySubmitName}
 
@@ -62,6 +63,7 @@ func NewMenu() *Menu {
 		options:     defaultMenuOptions,
 		state:       StateEmpty,
 		isInDiffTab: false,
+		compactMode: false,
 		keyDown:     -1,
 	}
 }
@@ -98,6 +100,11 @@ func (m *Menu) SetInstance(instance *session.Instance) {
 func (m *Menu) SetInDiffTab(inDiffTab bool) {
 	m.isInDiffTab = inDiffTab
 	m.updateOptions()
+}
+
+// SetCompactMode enables or disables compact menu mode
+func (m *Menu) SetCompactMode(compact bool) {
+	m.compactMode = compact
 }
 
 // updateOptions updates the menu options based on current state and instance
@@ -138,7 +145,7 @@ func (m *Menu) addInstanceOptions() {
 	}
 
 	// System group
-	systemGroup := []keys.KeyName{keys.KeyTab, keys.KeyHelp, keys.KeyQuit}
+	systemGroup := []keys.KeyName{keys.KeyTab, keys.KeyToggleMobile, keys.KeyHelp, keys.KeyQuit}
 
 	// Combine all groups
 	options = append(options, actionGroup...)
@@ -190,28 +197,43 @@ func (m *Menu) String() string {
 			inActionGroup = i >= groups[1].start && i < groups[1].end
 		}
 
-		if inActionGroup {
-			s.WriteString(localActionStyle.Render(binding.Help().Key))
-			s.WriteString(" ")
-			s.WriteString(localActionStyle.Render(binding.Help().Desc))
+		// In compact mode, only show the key, not the description
+		if m.compactMode {
+			if inActionGroup {
+				s.WriteString(localActionStyle.Render(binding.Help().Key))
+			} else {
+				s.WriteString(localKeyStyle.Render(binding.Help().Key))
+			}
 		} else {
-			s.WriteString(localKeyStyle.Render(binding.Help().Key))
-			s.WriteString(" ")
-			s.WriteString(localDescStyle.Render(binding.Help().Desc))
+			// Normal mode: show key and description
+			if inActionGroup {
+				s.WriteString(localActionStyle.Render(binding.Help().Key))
+				s.WriteString(" ")
+				s.WriteString(localActionStyle.Render(binding.Help().Desc))
+			} else {
+				s.WriteString(localKeyStyle.Render(binding.Help().Key))
+				s.WriteString(" ")
+				s.WriteString(localDescStyle.Render(binding.Help().Desc))
+			}
 		}
 
 		// Add appropriate separator
 		if i != len(m.options)-1 {
-			isGroupEnd := false
-			for _, group := range groups {
-				if i == group.end-1 {
-					s.WriteString(sepStyle.Render(verticalSeparator))
-					isGroupEnd = true
-					break
+			if m.compactMode {
+				// In compact mode, use simple space separator
+				s.WriteString(" ")
+			} else {
+				isGroupEnd := false
+				for _, group := range groups {
+					if i == group.end-1 {
+						s.WriteString(sepStyle.Render(verticalSeparator))
+						isGroupEnd = true
+						break
+					}
 				}
-			}
-			if !isGroupEnd {
-				s.WriteString(sepStyle.Render(separator))
+				if !isGroupEnd {
+					s.WriteString(sepStyle.Render(separator))
+				}
 			}
 		}
 	}
